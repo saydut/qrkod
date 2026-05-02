@@ -1,0 +1,1 @@
+﻿pyinstaller --noconsole --onefile --name "QrKodOlusturucu" --icon "icon.png" "qr.py"
