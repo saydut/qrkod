@@ -1,11 +1,4 @@
-# qr_parca_gui.py
-# Kurulum:
-#   pip install customtkinter qrcode[pil] pillow reportlab
-#
-# Notlar:
-# - iPhone bazı QR metinlerini (özellikle numara/tireli satırlar) düzgün "metin" olarak göstermeyebiliyor.
-# - "iPhone garanti (data:text)" açıkken QR içine data:text/plain URI gömülür; iPhone kamera bunu link olarak açar ve metni Safari'de tam gösterir.
-# - Arayüz sıkışmasın diye ayarlar iki satıra bölündü ve "iPhone seçenekleri" ayrı bir kutuya alındı.
+
 
 import json
 import os
@@ -24,7 +17,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 
 APP_TITLE = "Parça Listesi → QR"
-APP_VERSION = "1.0"
+APP_VERSION = "1.1"
 PROGRAMS_URL = "https://www.saydut.com/static/programs.json"
 PROGRAM_ID = "qr-kod-olusturucu"
 
@@ -86,26 +79,6 @@ def build_plaintext_payload(location: str, items: list[str], numbering: bool, in
 
     return header + "\n".join(body_lines)
 
-
-def ios_safe_hyphen(payload: str) -> str:
-    # Sadece rakam-rakam arasındaki '-' karakterlerini değiştir: 0010-01 -> 0010‑01
-    return re.sub(r"(?<=\d)-(?=\d)", "\u2011", payload)  # U+2011 non-breaking hyphen
-
-
-def ios_bullet_numeric_lines(payload: str) -> str:
-    # Rakamla başlayan satırların başına "• " ekler.
-    out_lines = []
-    for ln in payload.splitlines():
-        if re.match(r"^\s*\d", ln) and not ln.lstrip().startswith("•"):
-            out_lines.append("• " + ln.lstrip())
-        else:
-            out_lines.append(ln)
-    return "\n".join(out_lines)
-
-
-def make_data_text_uri(payload: str) -> str:
-    encoded = urllib.parse.quote(payload, safe="")
-    return f"data:text/plain;charset=utf-8,{encoded}"
 
 
 def make_qr_image(data: str, box_size: int, border: int, err_level: str) -> Image.Image:
@@ -283,33 +256,10 @@ class App(ctk.CTk):
         self.chk_loc = ctk.CTkCheckBox(row_a, text="Lokasyon QR'a", variable=self.include_location_var)
         self.chk_loc.grid(row=0, column=8, padx=10, pady=10, sticky="w")
 
-        # Row B: iPhone seçenekleri ayrı kutu (sıkışmasın)
-        row_b = ctk.CTkFrame(left, corner_radius=12)
-        row_b.grid(row=3, column=0, padx=14, pady=(0, 8), sticky="ew")
-        for i in range(8):
-            row_b.grid_columnconfigure(i, weight=1)
-
-        ctk.CTkLabel(row_b, text="iPhone seçenekleri:", font=ctk.CTkFont(weight="bold")).grid(
-            row=0, column=0, padx=10, pady=10, sticky="w"
-        )
-
-        self.ios_data_uri_var = ctk.BooleanVar(value=True)
-        self.ios_safe_hyphen_var = ctk.BooleanVar(value=False)
-        self.ios_bullet_var = ctk.BooleanVar(value=False)
-
-        self.chk_data = ctk.CTkCheckBox(row_b, text="Garanti (data:text)", variable=self.ios_data_uri_var)
-        self.chk_data.grid(row=0, column=1, padx=10, pady=10, sticky="w")
-
-        self.chk_ios_hyphen = ctk.CTkCheckBox(row_b, text="Tire düzelt", variable=self.ios_safe_hyphen_var)
-        self.chk_ios_hyphen.grid(row=0, column=2, padx=10, pady=10, sticky="w")
-
-        self.chk_ios_bullet = ctk.CTkCheckBox(row_b, text="• ekle", variable=self.ios_bullet_var)
-        self.chk_ios_bullet.grid(row=0, column=3, padx=10, pady=10, sticky="w")
-
         # Hint
         hint = ctk.CTkLabel(left, text="Parçaları satır satır yaz (istersen tek satırda virgülle ayır).",
                             font=ctk.CTkFont(size=12))
-        hint.grid(row=4, column=0, padx=14, pady=(6, 0), sticky="w")
+        hint.grid(row=3, column=0, padx=14, pady=(6, 0), sticky="w")
 
         # Text area
         self.textbox = ctk.CTkTextbox(left, corner_radius=12)
@@ -394,14 +344,7 @@ class App(ctk.CTk):
                 include_location=self.include_location_var.get(),
             )
 
-            # Metin modundayken iPhone fix'leri
-            if self.ios_safe_hyphen_var.get():
-                payload_text = ios_safe_hyphen(payload_text)
-            if self.ios_bullet_var.get():
-                payload_text = ios_bullet_numeric_lines(payload_text)
-
-            # iPhone garanti modu: QR içine link göm
-            qr_data = make_data_text_uri(payload_text) if self.ios_data_uri_var.get() else payload_text
+            qr_data = payload_text
 
             self.current_payload = payload_text  # .txt kaydetmek için gerçek metni sakla
 
@@ -433,10 +376,9 @@ class App(ctk.CTk):
             self.save_btn.configure(state="normal")
             self.pdf_btn.configure(state="normal")
 
-            mode_text = "DATA:TEXT (iPhone)" if self.ios_data_uri_var.get() else "Düz Metin"
             data_len = len(payload_text.encode("utf-8"))
             self.info_label.configure(
-                text=f"Mod: {mode_text}\nUTF-8 byte: {data_len}\nHata: {err_level}\nÖlçek: {box_size}  Border: {border}"
+                text=f"UTF-8 byte: {data_len}\nHata: {err_level}\nÖlçek: {box_size}  Border: {border}"
             )
 
         except Exception as e:
